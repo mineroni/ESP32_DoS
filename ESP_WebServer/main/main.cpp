@@ -16,7 +16,8 @@ extern "C" void app_main()
 
     server = webServer::start_webserver();
 
-    while (server) {
-        vTaskDelay(5/portTICK_PERIOD_MS);
+    while (server)
+    {
+        vTaskDelay(1000/portTICK_PERIOD_MS);
     }
 }

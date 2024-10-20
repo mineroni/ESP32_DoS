@@ -2,11 +2,13 @@
 
 esp_err_t static_get_handler(httpd_req_t *req)
 {
-    const char resp[] = "Simple static http response\n\
-                        Available commands\
-                        \t- /hello (GET)\
-                        \t- /pi    (GET)\
-                        \t- /echo  (POST)";
+    const char resp[] = "Simple static http response.<br><br>\
+                        Available commands:\
+                        <ul>\
+                        <li>/hello (GET)</li>\
+                        <li>/pi    (GET)</li>\
+                        <li>/echo  (POST)</li>\
+                        </ul>";
     httpd_resp_send(req, resp, HTTPD_RESP_USE_STRLEN);
     return ESP_OK;
 }
@@ -63,7 +65,7 @@ double calculatePi(int loops)
 esp_err_t pi_get_handler(httpd_req_t *req)
 {
     char buf[100] = {0};
-    sprintf(buf, "The value of PI (with 8 digit precision): %.8f", calculatePi(200000000));
+    sprintf(buf, "The value of PI (with 5 digit precision): %.5f", calculatePi(500000));
     httpd_resp_send(req, buf, HTTPD_RESP_USE_STRLEN);
     return ESP_OK;
 }
@@ -80,13 +82,12 @@ static esp_err_t post_handler(httpd_req_t *req)
     } 
 
     size_t ret;
-    if ((ret = httpd_req_recv(req, buf, sizeof(buf))) <= 0)
+    if ((ret = httpd_req_recv(req, buf, req->content_len)) <= 0)
     {
         delete[] buf;
         return ESP_FAIL;
     }
 
-    /* Send back the same data */
     httpd_resp_send(req, buf, HTTPD_RESP_USE_STRLEN);
     delete[] buf;
     return ESP_OK;
@@ -124,7 +125,7 @@ httpd_handle_t webServer::start_webserver()
 {
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.max_open_sockets = 16960;
+    config.max_open_sockets = 7;
     config.stack_size = 8000;
     config.task_priority = configMAX_PRIORITIES - 1;
 
