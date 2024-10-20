@@ -1,5 +1,11 @@
 #include "webServer.hpp"
 
+esp_err_t nc_get_handler(httpd_req_t *req)
+{
+    httpd_resp_send(req, "", HTTPD_RESP_USE_STRLEN);
+    return ESP_OK;
+}
+
 esp_err_t static_get_handler(httpd_req_t *req)
 {
     const char resp[] = "Simple static http response.<br><br>\
@@ -98,6 +104,13 @@ static esp_err_t post_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+static const httpd_uri_t nocontentGet = {
+    .uri      = "/nc",
+    .method   = HTTP_GET,
+    .handler  = nc_get_handler,
+    .user_ctx = NULL,
+};
+
 static const httpd_uri_t staticGet = {
     .uri      = "/",
     .method   = HTTP_GET,
@@ -140,6 +153,7 @@ httpd_handle_t webServer::start_webserver()
     {
         // Set URI handlers
         ESP_LOGI("WebServer", "Registering URI handlers");
+        httpd_register_uri_handler(server, &nocontentGet);
         httpd_register_uri_handler(server, &staticGet);
         httpd_register_uri_handler(server, &helloGet);
         httpd_register_uri_handler(server, &piGet);
