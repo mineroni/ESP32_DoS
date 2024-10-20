@@ -35,9 +35,14 @@ static esp_err_t hello_get_handler(httpd_req_t *req)
         else
         {
             httpd_resp_set_status(req, "400 Bad Request");
-            httpd_resp_send(req, "Header \"User-Agent\" not found!", HTTPD_RESP_USE_STRLEN);
+            httpd_resp_send(req, "Failed to get \"User-Agent\"!", HTTPD_RESP_USE_STRLEN);
         }
         delete[] buf;
+    }
+    else
+    {
+        httpd_resp_set_status(req, "400 Bad Request");
+        httpd_resp_send(req, "Header \"User-Agent\" not found!", HTTPD_RESP_USE_STRLEN);
     }
     return ESP_OK;
 }
