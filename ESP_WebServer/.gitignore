@@ -1,0 +1,5 @@
+build/
+components/
+sdkconfig
+sdkconfig.old
+*/secret.h
