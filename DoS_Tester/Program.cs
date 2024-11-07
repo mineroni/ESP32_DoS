@@ -56,7 +56,11 @@ internal class Program
         respNumSucceeded = 0;
         reqSentNum = 0;
         sw.Reset();
-    }
+
+        lastTimedOutResponse = 0;
+        lastResponseTime = 0;
+        searchValue = true;
+}
 
     private static void printResult(int reqPS)
     {
@@ -69,6 +73,13 @@ internal class Program
         Console.Clear();
         Console.WriteLine($"Waiting for response cooldown period.\nTime left: {timeLeft}");
         Console.WriteLine($"Elapsed time: {(int)sw.Elapsed.TotalSeconds}, Sent requests: {reqSentNum}\nSucceeded requests: {respNumSucceeded}, Average response time: {Math.Round(respTimeSumSucceed / (double)respNumSucceeded, 3)}ms\nFailed requests: {respNumFailed}, Failed response time: {Math.Round(respTimeSumFailed / (double)respNumFailed, 3)}ms\nFailed due to {cancelTime / 1000}s timeout: {respNumFailedTimeout}");
+    }
+
+    private static void logResult(int reqPS)
+    {
+        StreamWriter sw = new StreamWriter("log.csv", true);
+        sw.WriteLine($"{DateTime.Now.ToLocalTime().ToString("HH:mm:ss")},{reqPS}");
+        sw.Close();
     }
 
     static private void stressNcRequest(object ID)
@@ -133,6 +144,27 @@ internal class Program
             trackTimeoutFailed();
     }
 
+    private static int lastTimedOutResponse = 0, lastResponseTime = 0;
+    private static bool searchValue = true;
+    static int tryIncrement(int time)
+    { 
+        // Diagnostic time not reached
+        if (time < 25 || !searchValue)
+            return 0;
+
+        // dropped resource number extremely increased or response time atleast doubled
+        if (respNumFailedTimeout > lastTimedOutResponse*1.5 || lastResponseTime > 2*(respTimeSumSucceed / (double)respNumSucceeded))
+        {
+            searchValue = false;
+            return -1;
+        }
+
+        // server still responding, try to increase the load
+        lastTimedOutResponse = respNumFailedTimeout;
+        lastResponseTime = (int)(respTimeSumSucceed / (double)respNumSucceeded);
+        return 1;
+    }
+
     static void runTest(WaitCallback stressFunction)
     {
         Console.Write("How many requests do you want to send in a second? ");
@@ -143,6 +175,19 @@ internal class Program
             Console.Write("How many requests do you want to send in a second? ");
         }
         TimeSpan sleepTime = TimeSpan.FromMicroseconds(1000000 / countInASecond);
+
+
+        Console.Write("Do you want to controll the packet number (y/n)? ");
+        bool manualAttackConfig;
+        string? inp = Console.ReadLine();
+        while (!(inp?.Length == 1 && (inp?[0] == 'y' || inp?[0] == 'n')))
+        {
+            Console.WriteLine("Input is incorrect!");
+            Console.Write("Do you want to controll the packet number (y/n)? ");
+            inp = Console.ReadLine();
+        }
+        manualAttackConfig = inp[0] == 'y';
+
         Console.WriteLine("Press ESC to stop");
         int i = 0;
         int lastElapsed = 0;
@@ -164,6 +209,16 @@ internal class Program
                 { 
                     lastElapsed = (int)sw.Elapsed.TotalSeconds;
                     printResult(countInASecond);
+                    logResult(countInASecond);
+
+                    if (!manualAttackConfig)
+                    {
+                        // Dynamicly change DDoS load
+                        countInASecond += countInASecond > 20 ? 50 * tryIncrement(lastElapsed) : tryIncrement(lastElapsed);
+                        sleepTime = TimeSpan.FromMicroseconds(1000000 / countInASecond);
+                        lastModifyTime = sw.Elapsed.TotalSeconds;
+                        lastSentNum = reqSentNum;
+                    }
                 }
             }
             lastKey = Console.ReadKey(true).Key;
@@ -183,6 +238,9 @@ internal class Program
 
     static void Main(string[] args)
     {
+        StreamWriter sw = new StreamWriter("log.csv");
+        sw.WriteLine("Time,SentRequestsPerSecond");
+        sw.Close();
         client.DefaultRequestHeaders.Add("User-Agent", "C# example");
         ThreadPool.GetMaxThreads(out _, out int cpt);
         ThreadPool.SetMaxThreads(10000, cpt);
@@ -214,7 +272,11 @@ internal class Program
             {
                 printResultCooldown(25-i);
                 Thread.Sleep(1000);
+                //if (Console.KeyAvailable && Console.ReadKey(true).Key == ConsoleKey.Escape)
+                //    break;
             }
+            //while (Console.KeyAvailable)
+            //    Console.ReadKey();
             resetTracking();
         }
     }

@@ -61,11 +61,19 @@ internal class Program
         Console.WriteLine($"Press ESC to stop\n");
         Console.WriteLine($"Elapsed time: {(int)sw.Elapsed.TotalSeconds}, Last succeeded request response time: {lastResponseTime}ms\nSucceeded requests: {respNumSucceeded}, Average response time: {Math.Round(respTimeSumSucceed / (double)respNumSucceeded, 3)}ms\nFailed requests: {respNumFailed}, Failed response time: {Math.Round(respTimeSumFailed / (double)respNumFailed, 3)}ms\nFailed due to {cancelTime / 1000}s timeout: {respNumFailedTimeout}");
     }
+
     private static void printResultCooldown(int timeLeft)
     {
         Console.Clear();
         Console.WriteLine($"Waiting for response cooldown period. Hold ESC to force stop\nTime left: {timeLeft}");
         Console.WriteLine($"Elapsed time: {(int)sw.Elapsed.TotalSeconds}, Last succeeded request response time:  {lastResponseTime}ms\nSucceeded requests: {respNumSucceeded}, Average response time: {Math.Round(respTimeSumSucceed / (double)respNumSucceeded, 3)}ms\nFailed requests: {respNumFailed}, Failed response time: {Math.Round(respTimeSumFailed / (double)respNumFailed, 3)}ms\nFailed due to {cancelTime / 1000}s timeout: {respNumFailedTimeout}");
+    }
+
+    private static void logResult()
+    {
+        StreamWriter sw = new StreamWriter("log.csv", true);
+        sw.WriteLine($"{DateTime.Now.ToLocalTime().ToString("HH:mm:ss")},{Math.Round(respTimeSumSucceed / (double)respNumSucceeded, 3)}");
+        sw.Close();
     }
 
     static private void stressNcRequest(object ID)
@@ -147,6 +155,7 @@ internal class Program
                 {
                     lastElapsed = (int)sw.Elapsed.TotalSeconds;
                     printResult();
+                    logResult();
                 }
             }
         } while (Console.ReadKey(true).Key != ConsoleKey.Escape);
@@ -154,6 +163,9 @@ internal class Program
 
     static void Main(string[] args)
     {
+        StreamWriter sw = new StreamWriter("log.csv");
+        sw.WriteLine("Time,ResponseTimeAverage");
+        sw.Close();
         client.DefaultRequestHeaders.Add("User-Agent", "C# example");
         string? resp;
         while ((resp = getStressType()) is not null)
