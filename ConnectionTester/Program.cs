@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Globalization;
 using System.Net;
 
 namespace ConnectionTester;
@@ -11,6 +12,17 @@ internal class Program
         BaseAddress = new Uri("http://192.168.3.7"),
         Timeout = TimeSpan.FromSeconds(25),
     };
+
+    static private void renewClient()
+    {
+        client = new()
+        {
+            BaseAddress = new Uri("http://192.168.3.7"),
+            Timeout = TimeSpan.FromSeconds(25),
+        };
+        client.DefaultRequestHeaders.Add("User-Agent", "C# example");
+    }
+
     static private string? getStressType()
     {
         Console.Write("Please choose the type of test (n: no content, s: static,h: hello, p: pi, e: echo): ");
@@ -71,8 +83,8 @@ internal class Program
 
     private static void logResult()
     {
-        StreamWriter sw = new StreamWriter("log.csv", true);
-        sw.WriteLine($"{DateTime.Now.ToLocalTime().ToString("HH:mm:ss")},{Math.Round(respTimeSumSucceed / (double)respNumSucceeded, 3)}");
+        StreamWriter sw = new StreamWriter(logFileName, true);
+        sw.WriteLine($"{DateTime.Now.ToLocalTime().ToString("HH:mm:ss")},{Math.Round(respTimeSumSucceed / (double)respNumSucceeded, 3).ToString(new CultureInfo("en-US"))}");
         sw.Close();
     }
 
@@ -161,11 +173,17 @@ internal class Program
         } while (Console.ReadKey(true).Key != ConsoleKey.Escape);
     }
 
+    static string logFileName = "";
+    static void createLog(string test)
+    {
+        logFileName = $"log_{test}.csv";
+        StreamWriter sw = new StreamWriter(logFileName);
+        sw.WriteLine("Time,SentRequestsPerSecond");
+        sw.Close();
+    }
+
     static void Main(string[] args)
     {
-        StreamWriter sw = new StreamWriter("log.csv");
-        sw.WriteLine("Time,ResponseTimeAverage");
-        sw.Close();
         client.DefaultRequestHeaders.Add("User-Agent", "C# example");
         string? resp;
         while ((resp = getStressType()) is not null)
@@ -173,18 +191,23 @@ internal class Program
             switch (resp)
             {
                 case "n":
+                    createLog("nc");
                     runTest(new WaitCallback(stressNcRequest));
                     break;
                 case "s":
+                    createLog("s");
                     runTest(new WaitCallback(stressStaticRequest));
                     break;
                 case "h":
+                    createLog("he");
                     runTest(new WaitCallback(stressHelloRequest));
                     break;
                 case "p":
+                    createLog("pi");
                     runTest(new WaitCallback(stressPiRequest));
                     break;
                 case "e":
+                    createLog("e");
                     runTest(new WaitCallback(stressEchoRequest));
                     break;
                 default:
