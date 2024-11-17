@@ -11,9 +11,10 @@ internal class Program
         BaseAddress = new Uri("http://192.168.3.7"),
         Timeout = TimeSpan.FromSeconds(25),
     };
+
     static private string? getStressType()
     {
-        Console.Write("Please choose the type of test (n: no content, s: static,h: hello, p: pi, e: echo): ");
+        Console.Write("Please choose the type of test (n: no content, s: static, h: hello, p: pi, e: echo): ");
         return Console.ReadLine();
     }
 
@@ -75,85 +76,129 @@ internal class Program
         Console.WriteLine($"Elapsed time: {(int)sw.Elapsed.TotalSeconds}, Sent requests: {reqSentNum}\nSucceeded requests: {respNumSucceeded}, Average response time: {Math.Round(respTimeSumSucceed / (double)respNumSucceeded, 3)}ms\nFailed requests: {respNumFailed}, Failed response time: {Math.Round(respTimeSumFailed / (double)respNumFailed, 3)}ms\nFailed due to {cancelTime / 1000}s timeout: {respNumFailedTimeout}");
     }
 
+    static int lastRespSucceed = 0, lastRespTimeout = 0;
     private static void logResult(int reqPS)
     {
-        StreamWriter sw = new StreamWriter("log.csv", true);
-        sw.WriteLine($"{DateTime.Now.ToLocalTime().ToString("HH:mm:ss")},{reqPS}");
+        StreamWriter sw = new StreamWriter(logFileName, true);
+        sw.WriteLine($"{DateTime.Now.ToLocalTime().ToString("HH:mm:ss")},{reqPS},{respNumSucceeded - lastRespSucceed},{respNumFailedTimeout - lastRespTimeout}");
+        lastRespSucceed = respNumSucceeded;
+        lastRespTimeout = respNumFailedTimeout;
         sw.Close();
     }
 
-    static private void stressNcRequest(object ID)
+    static private async void stressNcRequest(object ID)
     {
         Stopwatch stopWatch = new Stopwatch();
         stopWatch.Start();
         var rsp = client.GetAsync("/nc");
-        rsp.Wait(cancelTime);
+        try
+        {
+            //rsp.Wait(cancelTime);
+            await rsp;
+        }
+        catch (Exception)
+        {
+            trackTimeoutFailed();
+        }
         stopWatch.Stop();
-        if(rsp.IsCompleted)
+        if(rsp.Status == TaskStatus.RanToCompletion && rsp.IsCompleted)
             trackResult(rsp.Result.StatusCode == HttpStatusCode.OK, stopWatch.ElapsedMilliseconds);
         else
             trackTimeoutFailed();
     }
 
-    static private void stressStaticRequest(object ID)
+    static private async void stressStaticRequest(object ID)
     {
         Stopwatch stopWatch = new Stopwatch();
         stopWatch.Start();
         var rsp = client.GetAsync("");
-        rsp.Wait(cancelTime);
+        try
+        {
+            //rsp.Wait(cancelTime);
+            await rsp;
+        }
+        catch (Exception)
+        {
+            trackTimeoutFailed();
+        }
         stopWatch.Stop();
-        if (rsp.IsCompleted)
+        if (rsp.Status == TaskStatus.RanToCompletion && rsp.IsCompleted)
             trackResult(rsp.Result.StatusCode == HttpStatusCode.OK, stopWatch.ElapsedMilliseconds);
         else
             trackTimeoutFailed();
     }
-    static private void stressHelloRequest(object ID)
+    static private async void stressHelloRequest(object ID)
     {
         Stopwatch stopWatch = new Stopwatch();
         stopWatch.Start();
         var rsp = client.GetAsync("/hello");
-        rsp.Wait(cancelTime);
+        try
+        {
+            //rsp.Wait(cancelTime);
+            await rsp;
+        }
+        catch (Exception)
+        {
+            trackTimeoutFailed();
+        }
         stopWatch.Stop();
-        if (rsp.IsCompleted)
+        if (rsp.Status == TaskStatus.RanToCompletion && rsp.IsCompleted)
             trackResult(rsp.Result.StatusCode == HttpStatusCode.OK, stopWatch.ElapsedMilliseconds);
         else
             trackTimeoutFailed();
     }
-    static private void stressPiRequest(object ID)
+    static private async void stressPiRequest(object ID)
     {
         Stopwatch stopWatch = new Stopwatch();
         stopWatch.Start();
         var rsp = client.GetAsync("/pi");
-        rsp.Wait(cancelTime);
+        try
+        {
+            //rsp.Wait(cancelTime);
+            await rsp;
+        }
+        catch (Exception)
+        {
+            trackTimeoutFailed();
+        }
         stopWatch.Stop();
-        if (rsp.IsCompleted)
+        if (rsp.Status == TaskStatus.RanToCompletion && rsp.IsCompleted)
             trackResult(rsp.Result.StatusCode == HttpStatusCode.OK, stopWatch.ElapsedMilliseconds);
         else
             trackTimeoutFailed();
     }
-    static private void stressEchoRequest(object ID)
+    static private async void stressEchoRequest(object ID)
     {
         Stopwatch stopWatch = new Stopwatch();
         stopWatch.Start();
         var rsp = client.PostAsync("/echo", new StringContent("asaafadassaddafhghsfdgdfh"));
-        rsp.Wait(cancelTime);
+        try
+        {
+            await rsp;
+        }
+        catch (Exception)
+        {
+            trackTimeoutFailed();
+        }
         stopWatch.Stop();
-        if (rsp.IsCompleted)
+        if (rsp.Status == TaskStatus.RanToCompletion && rsp.IsCompleted)
             trackResult(rsp.Result.StatusCode == HttpStatusCode.OK, stopWatch.ElapsedMilliseconds);
         else
             trackTimeoutFailed();
     }
 
-    private static int lastTimedOutResponse = 0, lastResponseTime = 0;
+    private static int lastTimedOutResponse = 0, lastResponseTime = 0, lastTime = 0;
     private static bool searchValue = true;
     static int tryIncrement(int time)
     { 
         // Diagnostic time not reached
-        if (time < 25 || !searchValue)
+        if (time - lastTime <= 25 || !searchValue)
             return 0;
 
+        lastTime = time;
+
         // dropped resource number extremely increased or response time atleast doubled
-        if (respNumFailedTimeout > lastTimedOutResponse*1.5 || lastResponseTime > 2*(respTimeSumSucceed / (double)respNumSucceeded))
+        if ((respNumFailedTimeout > lastTimedOutResponse*1.5+20 || lastResponseTime > 2*(respTimeSumSucceed / (double)respNumSucceeded)) && time > 100)
         {
             searchValue = false;
             return -1;
@@ -199,14 +244,15 @@ internal class Program
         {
             while (!Console.KeyAvailable)
             {
-                ThreadPool.QueueUserWorkItem(stressFunction, i++);
+                //ThreadPool.QueueUserWorkItem(stressFunction, i++);
+                stressFunction(i++);
                 ++reqSentNum;
 
                 if((sw.Elapsed.TotalSeconds - lastModifyTime) * countInASecond < (reqSentNum - lastSentNum))
                     Thread.Sleep(sleepTime);
 
                 if ((int)sw.Elapsed.TotalSeconds > lastElapsed)
-                { 
+                {
                     lastElapsed = (int)sw.Elapsed.TotalSeconds;
                     printResult(countInASecond);
                     logResult(countInASecond);
@@ -214,7 +260,7 @@ internal class Program
                     if (!manualAttackConfig)
                     {
                         // Dynamicly change DDoS load
-                        countInASecond += countInASecond > 20 ? 50 * tryIncrement(lastElapsed) : tryIncrement(lastElapsed);
+                        countInASecond += 3 * tryIncrement(lastElapsed);
                         sleepTime = TimeSpan.FromMicroseconds(1000000 / countInASecond);
                         lastModifyTime = sw.Elapsed.TotalSeconds;
                         lastSentNum = reqSentNum;
@@ -236,32 +282,43 @@ internal class Program
         } while (lastKey != ConsoleKey.Escape);
     }
 
+    static string logFileName = "";
+    static void createLog(string test)
+    {
+        logFileName = $"log_{test}.csv";
+        StreamWriter sw = new StreamWriter(logFileName);
+        sw.WriteLine("Time,SentRequestsPerSecond,SusceededResponses,TimedoutResponses");
+        sw.Close();
+    }
+
     static void Main(string[] args)
     {
-        StreamWriter sw = new StreamWriter("log.csv");
-        sw.WriteLine("Time,SentRequestsPerSecond");
-        sw.Close();
         client.DefaultRequestHeaders.Add("User-Agent", "C# example");
         ThreadPool.GetMaxThreads(out _, out int cpt);
-        ThreadPool.SetMaxThreads(10000, cpt);
+        ThreadPool.SetMaxThreads(512, cpt);
         string? resp;
         while ((resp = getStressType()) is not null)
         {
             switch (resp)
             {
                 case "n":
+                    createLog("nc");
                     runTest(new WaitCallback(stressNcRequest));
                     break;
                 case "s":
+                    createLog("s");
                     runTest(new WaitCallback(stressStaticRequest));
                     break;
                 case "h":
+                    createLog("he");
                     runTest(new WaitCallback(stressHelloRequest));
                     break;
                 case "p":
+                    createLog("pi");
                     runTest(new WaitCallback(stressPiRequest));
                     break;
                 case "e":
+                    createLog("e");
                     runTest(new WaitCallback(stressEchoRequest));
                     break;
                 default:
