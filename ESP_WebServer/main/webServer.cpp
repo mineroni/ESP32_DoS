@@ -144,7 +144,7 @@ httpd_handle_t webServer::start_webserver()
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.max_open_sockets = 7;
-    config.stack_size = 8000;
+    config.stack_size = 16000;
     config.task_priority = configMAX_PRIORITIES - 1;
 
     // Start the httpd server
